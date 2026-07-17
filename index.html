@@ -64,6 +64,35 @@
             color: rgb(212, 212, 216);
             border-color: rgb(63, 63, 70);
         }
+        .weather-condition-glyph {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.4rem;
+            height: 2.4rem;
+            border-radius: 0.9rem;
+            background: radial-gradient(circle at 30% 20%, rgba(16, 185, 129, 0.22), rgba(9, 9, 11, 0.84) 58%);
+            border: 1px solid rgba(39, 39, 42, 0.95);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 0 18px rgba(16,185,129,0.10);
+        }
+        .weather-condition-glyph i {
+            filter: drop-shadow(0 0 8px currentColor);
+        }
+        .forecast-accordion-panel {
+            display: grid;
+            grid-template-rows: 0fr;
+            opacity: 0;
+            transition: grid-template-rows 220ms ease, opacity 180ms ease, margin-top 220ms ease;
+        }
+        .forecast-accordion-panel.open {
+            grid-template-rows: 1fr;
+            opacity: 1;
+            margin-top: 1.25rem;
+        }
+        .forecast-accordion-panel > div {
+            overflow: hidden;
+        }
         @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
@@ -167,7 +196,22 @@
             </div>
 
             <!-- Hourly and Daily Forecast Intelligence -->
-            <div class="mt-5 pt-5 border-t border-zinc-900 space-y-5">
+            <div class="mt-5 pt-5 border-t border-zinc-900">
+                <button type="button" onclick="toggleWeatherForecast()" class="group w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-left rounded-lg border border-zinc-900 bg-zinc-900/20 hover:bg-emerald-950/10 hover:border-emerald-900/50 px-4 py-3 transition-all" aria-expanded="false" aria-controls="weather-forecast-panel" id="weather-forecast-toggle">
+                    <span class="flex items-center gap-3">
+                        <span class="weather-condition-glyph !w-9 !h-9 !rounded-lg text-emerald-400"><i class="fa-solid fa-satellite-dish"></i></span>
+                        <span>
+                            <span class="block text-zinc-500 uppercase tracking-wider text-[9px] font-mono font-bold">Forecast Intelligence</span>
+                            <span class="block text-white text-sm font-bold font-mono mt-0.5">Hourly + seven day outlook</span>
+                        </span>
+                    </span>
+                    <span class="flex items-center gap-2 text-[9px] font-mono font-bold text-emerald-400 uppercase tracking-wider">
+                        <span id="weather-forecast-toggle-label">Open forecast deck</span>
+                        <i id="weather-forecast-toggle-icon" class="fa-solid fa-chevron-down transition-transform duration-200"></i>
+                    </span>
+                </button>
+                <div id="weather-forecast-panel" class="forecast-accordion-panel" aria-hidden="true">
+                    <div class="space-y-5">
                 <div class="grid grid-cols-1 xl:grid-cols-12 gap-5">
                     <div class="xl:col-span-8 bg-zinc-900/20 border border-zinc-900/80 rounded-lg p-4">
                         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
@@ -203,6 +247,8 @@
                     </div>
                     <div id="weather-daily-forecast" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2">
                         <div class="text-[10px] font-mono text-zinc-500 border border-zinc-900 rounded p-3 bg-zinc-950/50">Awaiting daily forecast...</div>
+                    </div>
+                </div>
                     </div>
                 </div>
             </div>
@@ -346,13 +392,15 @@
             cachedTennisData: [],
             weatherHourlyData: [],
             weatherDailyData: [],
-            activeWeatherChart: 'temperature'
+            activeWeatherChart: 'temperature',
+            weatherForecastOpen: false
         };
 
         window.onload = function() {
             setupDates();
             renderTopicToggles();
-            switchView(appState.activeView); 
+            switchView(appState.activeView);
+            setWeatherForecastOpen(false);
             fetchAllFeeds(); 
         };
 
@@ -623,13 +671,7 @@
 
                 // Set dynamic telemetry icon
                 const iconContainer = document.getElementById('weather-main-icon');
-                if (data.current.weather_code <= 1) {
-                    iconContainer.innerHTML = `<i class="fa-solid fa-sun text-emerald-500 animate-pulse"></i>`;
-                } else if (data.current.weather_code <= 3) {
-                    iconContainer.innerHTML = `<i class="fa-solid fa-cloud-sun text-zinc-500"></i>`;
-                } else {
-                    iconContainer.innerHTML = `<i class="fa-solid fa-cloud-rain text-emerald-600 animate-pulse"></i>`;
-                }
+                iconContainer.innerHTML = renderWeatherIcon(data.current.weather_code, 'text-2xl');
 
                 // Push 3-Source Consensus Calculations
                 document.getElementById('weather-bom').innerText = `${temp.toFixed(1)}°C`;
@@ -694,6 +736,41 @@
             }));
         }
 
+        function toggleWeatherForecast() {
+            setWeatherForecastOpen(!appState.weatherForecastOpen);
+        }
+
+        function setWeatherForecastOpen(isOpen) {
+            appState.weatherForecastOpen = isOpen;
+            const panel = document.getElementById('weather-forecast-panel');
+            const toggle = document.getElementById('weather-forecast-toggle');
+            const label = document.getElementById('weather-forecast-toggle-label');
+            const icon = document.getElementById('weather-forecast-toggle-icon');
+            if (!panel || !toggle) return;
+            panel.classList.toggle('open', isOpen);
+            panel.setAttribute('aria-hidden', String(!isOpen));
+            toggle.setAttribute('aria-expanded', String(isOpen));
+            if (label) label.innerText = isOpen ? 'Hide forecast deck' : 'Open forecast deck';
+            if (icon) icon.classList.toggle('rotate-180', isOpen);
+        }
+
+        function getWeatherIconMeta(code) {
+            if (code === 0) return { icon: 'fa-sun', color: 'text-amber-300', label: 'Clear' };
+            if ([1, 2].includes(code)) return { icon: 'fa-cloud-sun', color: 'text-emerald-300', label: 'Partly cloudy' };
+            if (code === 3) return { icon: 'fa-cloud', color: 'text-zinc-300', label: 'Overcast' };
+            if ([45, 48].includes(code)) return { icon: 'fa-smog', color: 'text-slate-300', label: 'Fog' };
+            if ([51, 53, 55, 56, 57].includes(code)) return { icon: 'fa-cloud-rain', color: 'text-sky-300', label: 'Drizzle' };
+            if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return { icon: 'fa-cloud-showers-heavy', color: 'text-cyan-300', label: 'Rain' };
+            if ([71, 73, 75, 77, 85, 86].includes(code)) return { icon: 'fa-snowflake', color: 'text-blue-200', label: 'Snow' };
+            if ([95, 96, 99].includes(code)) return { icon: 'fa-cloud-bolt', color: 'text-violet-300', label: 'Storm' };
+            return { icon: 'fa-wind', color: 'text-emerald-400', label: 'Variable' };
+        }
+
+        function renderWeatherIcon(code, sizeClass = 'text-lg') {
+            const meta = getWeatherIconMeta(code);
+            return `<span class="weather-condition-glyph ${meta.color}" title="${meta.label}" aria-label="${meta.label}"><i class="fa-solid ${meta.icon} ${sizeClass}"></i></span>`;
+        }
+
         function switchWeatherChart(metric) {
             appState.activeWeatherChart = metric;
             renderWeatherChart();
@@ -755,8 +832,16 @@
                 return `<text x="${xFor(originalIndex)}" y="${chartHeight - 10}" text-anchor="middle" fill="#71717a" font-size="9" font-family="monospace">${row.time.toLocaleTimeString('en-AU', { hour: '2-digit', hour12: false })}</text>`;
             }).join('');
 
+            const iconRail = data.filter((_, index) => index % 4 === 0 || index === data.length - 1).map(row => `
+                <div class="flex flex-col items-center gap-1 min-w-[3.5rem]">
+                    ${renderWeatherIcon(row.weatherCode, 'text-sm')}
+                    <span class="text-[8px] text-zinc-500 font-mono">${row.time.toLocaleTimeString('en-AU', { hour: '2-digit', hour12: false })}</span>
+                </div>
+            `).join('');
+
             container.innerHTML = `
-                <svg viewBox="0 0 ${chartWidth} ${chartHeight}" class="w-full h-[210px]" role="img" aria-label="${config.label} over the next 24 hours">
+                <div class="w-full">
+                <svg viewBox="0 0 ${chartWidth} ${chartHeight}" class="w-full h-[176px]" role="img" aria-label="${config.label} over the next 24 hours">
                     <line x1="${leftPad}" y1="${topPad}" x2="${leftPad}" y2="${chartHeight - bottomPad}" stroke="#27272a" />
                     <line x1="${leftPad}" y1="${chartHeight - bottomPad}" x2="${chartWidth - rightPad}" y2="${chartHeight - bottomPad}" stroke="#27272a" />
                     <text x="8" y="${topPad + 4}" fill="#a1a1aa" font-size="9" font-family="monospace">${max.toFixed(1)}${config.unit}</text>
@@ -766,6 +851,8 @@
                     ${values.map((value, index) => `<circle cx="${xFor(index)}" cy="${yFor(value)}" r="2.5" fill="${config.color}"><title>${data[index].time.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}: ${value.toFixed(1)}${config.unit}</title></circle>`).join('')}
                     ${labels}
                 </svg>
+                <div class="flex items-center justify-between gap-2 px-3 pb-3 overflow-x-auto">${iconRail}</div>
+                </div>
             `;
         }
 
@@ -780,7 +867,8 @@
                         <div class="text-[10px] text-white font-mono font-bold uppercase">${day.date.toLocaleDateString('en-AU', { weekday: 'short' })}</div>
                         <div class="text-[9px] text-zinc-500 font-mono">${day.date.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' })}</div>
                     </div>
-                    <div class="text-[10px] text-emerald-400 font-semibold mb-2 truncate">${day.description}</div>
+                    <div class="flex items-center justify-center my-3">${renderWeatherIcon(day.weatherCode, 'text-xl')}</div>
+                    <div class="text-[10px] text-emerald-400 font-semibold mb-2 truncate text-center">${day.description}</div>
                     <div class="space-y-1 text-[9px] font-mono text-zinc-400">
                         <div class="flex justify-between"><span>Temp</span><span class="text-white font-bold">${day.tempMin?.toFixed(0)}° / ${day.tempMax?.toFixed(0)}°C</span></div>
                         <div class="flex justify-between"><span>Rain</span><span class="text-white font-bold">${day.precipitationProbability ?? 0}% · ${(day.precipitation ?? 0).toFixed(1)}mm</span></div>
